@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bunnycoiin DeFi</title>
+    <!-- @solana/web3.js via CDN: necessário para VersionedTransaction.deserialize()
+         que é como a Phantom espera receber transações do Jupiter.
+         Fallback para jsdelivr caso unpkg falhe (rede instável, bloqueio,
+         CDN fora do ar) — sem isso, o swap real trava silenciosamente
+         na hora de assinar, sem mensagem de erro clara. -->
+    <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js" onerror="
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/@solana/web3.js@1.98.0/lib/index.iife.min.js';
+      document.head.appendChild(s);
+    "></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
