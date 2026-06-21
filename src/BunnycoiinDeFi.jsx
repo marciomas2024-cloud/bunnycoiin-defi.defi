@@ -1557,14 +1557,7 @@ export default function BunnycoiinDeFi() {
               <p className="text-sm mt-1" style={{ color: C.textDim }}>Troque entre $BNC e qualquer outro token da Solana — SOL, USDC, USDT e mais — via Jupiter Aggregator.</p>
             </div>
 
-            {!JUPITER_API_KEY && (
-              <Panel className="p-4 flex items-start gap-3" style={{ borderColor: C.carrot + '55' }}>
-                <AlertCircle size={16} color={C.carrot} className="mt-0.5 shrink-0" />
-                <p className="text-xs" style={{ color: C.textDim }}>
-                  Sem API key configurada — a Jupiter API exige uma chave gratuita desde a migração de abril/2026 (gere em <span style={{ color: C.carrot }}>portal.jup.ag</span>). Sem ela, as cotações podem ser limitadas ou falhar com mais frequência.
-                </p>
-              </Panel>
-            )}
+
 
             <Panel className="p-5">
               <label className="text-xs uppercase tracking-wide block mb-2" style={{ color: C.textFaint }}>Você paga</label>
