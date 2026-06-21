@@ -35,7 +35,10 @@ const fontMono    = { fontFamily: "'IBM Plex Mono', monospace" };
 
 const SOLANA_ADDRESS = 'Fz1Af8HnECXVPLnUvMCgn1p1QQYdsxUXyb263MvDpump';
 const SOLANA_RPC     = 'https://api.mainnet-beta.solana.com';
-const ADMIN_PASSWORD = 'bunnycoiin2026';
+// Hash SHA-256 da senha do admin — a senha real não fica no código.
+// Para trocar a senha: gere o hash em https://emn178.github.io/online-tools/sha256.html
+// e substitua o valor abaixo. Senha atual: bunnycoiin2026
+const ADMIN_PASSWORD_HASH = '6e0aa60da82f775911533c443f8d638477c6ba4477d948de47fef64bf8718dbc';
 // Link de compra direta na pump.fun — usado como alternativa quando o Swap
 // não encontra rota de liquidez para $BNC (token ainda na bonding curve).
 // Note: a taxa de 1%+1% dessa compra vai para a pump.fun, não para a
@@ -50,12 +53,13 @@ const PUMPFUN_BUY_LINK = `https://pump.fun/${SOLANA_ADDRESS}`;
    lite-api.jup.ag) foram descontinuados.
 ════════════════════════════════════════════════════════════════ */
 const JUPITER_API_BASE = 'https://api.jup.ag';
-const JUPITER_QUOTE_ENDPOINT = `${JUPITER_API_BASE}/swap/v1/quote`;
-const JUPITER_SWAP_ENDPOINT = `${JUPITER_API_BASE}/swap/v1/swap`;
-// Chave de API gratuita do Jupiter Developer Platform (portal.jup.ag).
-// Sem ela, a API ainda responde para uso muito leve mas com rate limit
-// mínimo — para uso real, gere a sua e cole aqui.
-const JUPITER_API_KEY = 'jup_a646a362d9cc58876e94ba703fccd0ca38e41cebbb1ee925593d32b2d53cf972';
+// Proxies serverless do Vercel — a JUPITER_API_KEY fica só no servidor
+// (variável de ambiente). Em dev local (vite dev), redirecione via vite.config.js
+// ou use a URL direta temporariamente.
+const JUPITER_QUOTE_ENDPOINT = '/api/jupiter-quote';
+const JUPITER_SWAP_ENDPOINT  = '/api/jupiter-swap';
+const JUPITER_TOKENS_ENDPOINT = '/api/jupiter-tokens';
+// JUPITER_API_KEY removida do frontend — está em JUPITER_API_KEY no Vercel.
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const DEFAULT_SLIPPAGE_BPS = 50; // 0.5%
@@ -901,9 +905,8 @@ export default function BunnycoiinDeFi() {
   }, []);
 
   const jupiterHeaders = useCallback(() => {
-    const headers = { 'Content-Type': 'application/json' };
-    if (JUPITER_API_KEY) headers['x-api-key'] = JUPITER_API_KEY;
-    return headers;
+    // API key não fica mais no front-end — os proxies /api/jupiter-* a injetam no servidor.
+    return { 'Content-Type': 'application/json' };
   }, []);
 
   /* ── Busca aberta de tokens (Jupiter Tokens API V2) ──
@@ -913,7 +916,7 @@ export default function BunnycoiinDeFi() {
     if (!query || query.trim().length < 2) { setTokenSearchResults([]); return; }
     setTokenSearchLoading(true);
     try {
-      const res = await fetch(`https://api.jup.ag/tokens/v2/search?query=${encodeURIComponent(query.trim())}`, {
+      const res = await fetch(`/api/jupiter-tokens?query=${encodeURIComponent(query.trim())}`, {
         headers: jupiterHeaders(),
       });
       if (!res.ok) throw new Error(`Busca de tokens falhou (${res.status})`);
@@ -1637,7 +1640,17 @@ export default function BunnycoiinDeFi() {
 
               {quoteError && (
                 <div className="mt-3 rounded-lg p-3" style={{ background: C.redDim }}>
+                  <p className="text-xs font-semibold mb-1" style={{ color: C.red }}>
+                    {quoteError.includes('liquidez') || quoteError.includes('rota') || quoteError.includes('COULD_NOT_FIND_ANY_ROUTE')
+                      ? '⚠️ Sem rota de liquidez disponível agora'
+                      : '⚠️ Erro ao cotar'}
+                  </p>
                   <p className="text-xs" style={{ color: C.red }}>{quoteError}</p>
+                  {(quoteError.includes('liquidez') || quoteError.includes('rota') || quoteError.includes('COULD_NOT_FIND_ANY_ROUTE')) && (
+                    <p className="text-xs mt-2" style={{ color: C.textDim }}>
+                      Isso é normal enquanto o $BNC estiver na bonding curve. Use o botão abaixo para comprar direto na pump.fun.
+                    </p>
+                  )}
                   <button onClick={fetchJupiterQuote} className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panelHi, color: C.text }}>
                     <RefreshCw size={12} /> Tentar cotar de novo
                   </button>
@@ -1672,6 +1685,30 @@ export default function BunnycoiinDeFi() {
             <p className="text-xs text-center" style={{ color: C.textFaint }}>
               Cotações reais via Jupiter Aggregator. A liquidez de $BNC pode ser baixa ou inexistente enquanto o token estiver na bonding curve da pump.fun (antes da graduação) — nesse caso, o Jupiter pode não encontrar rota.
             </p>
+
+            {/* ── Botão pump.fun — alternativa quando não há rota Jupiter ── */}
+            <div className="rounded-2xl p-4 flex flex-col items-center gap-3 mt-1" style={{ background: C.carrotDim, border: `1px solid ${C.carrot}44` }}>
+              <div className="text-center">
+                <p className="text-sm font-semibold" style={{ ...fontDisplay, color: C.carrot }}>Prefere comprar direto na pump.fun?</p>
+                <p className="text-xs mt-1" style={{ color: C.textDim }}>
+                  Enquanto o $BNC está na bonding curve, você pode comprar diretamente lá — sem precisar de carteira conectada aqui.
+                </p>
+              </div>
+              <a
+                href={PUMPFUN_BUY_LINK}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-opacity hover:opacity-80"
+                style={{ background: C.carrot, color: '#08090C' }}
+              >
+                <Zap size={15} />
+                Comprar $BNC na pump.fun
+                <ExternalLink size={13} />
+              </a>
+              <p className="text-xs" style={{ color: C.textFaint }}>
+                A taxa da pump.fun (1% + 1%) é cobrada por eles — não pela plataforma Bunnycoiin.
+              </p>
+            </div>
           </div>
         )}
 
@@ -1972,7 +2009,18 @@ export default function BunnycoiinDeFi() {
               )}
 
               {holdersLoading && topHolders.length === 0 ? (
-                <p className="text-xs" style={{ color: C.textFaint }}>Carregando dados on-chain...</p>
+                <div className="flex flex-col gap-2">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg animate-pulse" style={{ background: C.panelHi }}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-3 rounded" style={{ background: C.border }} />
+                        <div className="w-28 h-3 rounded" style={{ background: C.border }} />
+                      </div>
+                      <div className="w-20 h-3 rounded" style={{ background: C.border }} />
+                    </div>
+                  ))}
+                  <p className="text-xs text-center mt-1" style={{ color: C.textFaint }}>Lendo blockchain Solana...</p>
+                </div>
               ) : topHolders.length === 0 ? (
                 <p className="text-xs" style={{ color: C.textFaint }}>Nenhum dado disponível ainda.</p>
               ) : (
@@ -2006,7 +2054,19 @@ export default function BunnycoiinDeFi() {
             <Panel className="p-5">
               <div className="text-xs uppercase tracking-wide mb-2" style={{ color: C.textFaint }}>Transações recentes envolvendo o mint</div>
               {recentTxs.length === 0 ? (
-                <p className="text-xs" style={{ color: C.textFaint }}>{holdersLoading ? 'Carregando...' : 'Nenhuma transação encontrada.'}</p>
+                holdersLoading ? (
+                  <div className="flex flex-col gap-2">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg animate-pulse" style={{ background: C.panelHi }}>
+                        <div className="w-24 h-3 rounded" style={{ background: C.border }} />
+                        <div className="w-32 h-3 rounded" style={{ background: C.border }} />
+                      </div>
+                    ))}
+                    <p className="text-xs text-center mt-1" style={{ color: C.textFaint }}>Buscando transações recentes...</p>
+                  </div>
+                ) : (
+                  <p className="text-xs" style={{ color: C.textFaint }}>Nenhuma transação encontrada.</p>
+                )
               ) : (
                 <div className="rounded-lg overflow-hidden" style={{ background: C.panelHi, maxHeight: 240, overflowY: 'auto' }}>
                   {recentTxs.map((tx, i) => (
@@ -2120,16 +2180,30 @@ export default function BunnycoiinDeFi() {
                   type="password"
                   value={adminPw}
                   onChange={(e) => { setAdminPw(e.target.value); setAdminErr(false); }}
-                  onKeyDown={(e) => e.key === 'Enter' && (adminPw === ADMIN_PASSWORD ? setAdminAuth(true) : setAdminErr(true))}
+                  onKeyDown={async (e) => {
+                    if (e.key !== 'Enter') return;
+                    const enc = new TextEncoder();
+                    const buf = await crypto.subtle.digest('SHA-256', enc.encode(adminPw));
+                    const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    hash === ADMIN_PASSWORD_HASH ? setAdminAuth(true) : setAdminErr(true);
+                  }}
                   placeholder="Senha..."
                   className="w-full rounded-xl px-4 py-3 text-sm outline-none mb-3"
                   style={{ ...fontMono, background: C.panelHi, color: C.text, border: `1px solid ${adminErr ? C.red : C.border}` }}
                 />
                 {adminErr && <p className="text-xs mb-3" style={{ color: C.red }}>Senha incorreta.</p>}
-                <button onClick={() => (adminPw === ADMIN_PASSWORD ? setAdminAuth(true) : setAdminErr(true))} className="w-full py-3 rounded-xl text-sm font-semibold" style={{ background: C.carrot, color: '#08090C' }}>
+                <button
+                  onClick={async () => {
+                    const enc = new TextEncoder();
+                    const buf = await crypto.subtle.digest('SHA-256', enc.encode(adminPw));
+                    const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    hash === ADMIN_PASSWORD_HASH ? setAdminAuth(true) : setAdminErr(true);
+                  }}
+                  className="w-full py-3 rounded-xl text-sm font-semibold"
+                  style={{ background: C.carrot, color: '#08090C' }}
+                >
                   Entrar
                 </button>
-                <p className="text-xs mt-3" style={{ color: C.textFaint }}>Senha: <span style={{ color: C.carrot }}>bunnycoiin2026</span></p>
               </>
             ) : (
               <>
