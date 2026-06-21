@@ -37,7 +37,7 @@ const SOLANA_ADDRESS = 'Fz1Af8HnECXVPLnUvMCgn1p1QQYdsxUXyb263MvDpump';
 const SOLANA_RPC     = 'https://api.mainnet-beta.solana.com';
 // Hash SHA-256 da senha do admin — a senha real não fica no código.
 // Para trocar a senha: gere o hash em https://emn178.github.io/online-tools/sha256.html
-// e substitua o valor abaixo. Senha atual: bunnycoiin2026
+// e substitua o valor abaixo pelo novo hash gerado.
 const ADMIN_PASSWORD_HASH = '6e0aa60da82f775911533c443f8d638477c6ba4477d948de47fef64bf8718dbc';
 // Link de compra direta na pump.fun — usado como alternativa quando o Swap
 // não encontra rota de liquidez para $BNC (token ainda na bonding curve).
@@ -241,24 +241,29 @@ function progressPercent(position) {
   return Math.min(100, Math.max(0, (elapsed / total) * 100));
 }
 
+// Armazenamento local para posições de staking simulado.
+// Usa localStorage (disponível em qualquer browser/Vercel).
+function storageGet(key) {
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
+}
+function storageSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
 async function simListPositions(walletAddress) {
   try {
-    const result = await window.storage.get(SIM_STORAGE_KEY, false);
-    const all = result?.value ? JSON.parse(result.value) : [];
+    const all = storageGet(SIM_STORAGE_KEY) || [];
     return walletAddress ? all.filter((p) => p.wallet === walletAddress) : all;
   } catch (e) {
     return [];
   }
 }
 async function simSaveAll(positions) {
-  await window.storage.set(SIM_STORAGE_KEY, JSON.stringify(positions), false);
+  storageSet(SIM_STORAGE_KEY, positions);
 }
 async function simStake({ walletAddress, amount, periodDays }) {
   let all = [];
-  try {
-    const result = await window.storage.get(SIM_STORAGE_KEY, false);
-    all = result?.value ? JSON.parse(result.value) : [];
-  } catch (e) {}
+  try { all = storageGet(SIM_STORAGE_KEY) || []; } catch (e) {}
   const now = Date.now();
   const position = {
     id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
@@ -276,10 +281,7 @@ async function simStake({ walletAddress, amount, periodDays }) {
 }
 async function simClaim({ positionId }) {
   let all = [];
-  try {
-    const result = await window.storage.get(SIM_STORAGE_KEY, false);
-    all = result?.value ? JSON.parse(result.value) : [];
-  } catch (e) {}
+  try { all = storageGet(SIM_STORAGE_KEY) || []; } catch (e) {}
   const updated = all.map((p) => (p.id === positionId ? { ...p, claimed: true, claimedAt: Date.now() } : p));
   await simSaveAll(updated);
   return updated.find((p) => p.id === positionId);
