@@ -83,31 +83,46 @@ const DEFAULT_SLIPPAGE_BPS = 50; // 0.5%
 const PLATFORM_FEE_BPS = 300; // 3,00% — dentro da faixa praticada pelo mercado (ver whitepaper)
 const PLATFORM_FEE_WALLET = '22SWZ4U79qcTDm1kqb39qYbV4aZ34QoAxC3o58pKDfrX';
 
-// Lista de RPCs públicos da Solana, em ordem de tentativa. O RPC oficial
-// (api.mainnet-beta.solana.com) costuma bloquear/limitar requisições vindas
-// de browsers em domínios não whitelisted (CORS/rate limit), por isso
-// mantemos alternativas públicas conhecidas como fallback automático.
+// Lista de RPCs públicos da Solana, em ordem de tentativa.
+// api.mainnet-beta.solana.com bloqueia browsers com 403 (CORS/rate limit).
+// Os endpoints abaixo têm CORS aberto para browsers e são testados em 2026.
 const SOLANA_RPC_ENDPOINTS = [
-  'https://api.mainnet-beta.solana.com',
-  'https://solana-rpc.publicnode.com',
-  'https://rpc.ankr.com/solana',
-  'https://solana.drpc.org',
+  'https://solana-rpc.publicnode.com',   // PublicNode — CORS aberto, estável
+  'https://solana.drpc.org',             // dRPC — CORS aberto, sem auth
+  'https://rpc.ankr.com/solana',         // Ankr — CORS aberto, rate limit generoso
+  'https://mainnet.helius-rpc.com/?api-key=public', // Helius public key
+  'https://api.mainnet-beta.solana.com', // oficial — último (403 em browsers)
 ];
 
 // Faz a chamada RPC tentando cada endpoint da lista até um responder com sucesso.
-async function solanaRpcCall(body, { timeoutMs = 8000 } = {}) {
+// Usa mode: 'cors' explícito e trata erros de rede separados de erros HTTP.
+async function solanaRpcCall(body, { timeoutMs = 10000 } = {}) {
   let lastError = null;
   for (const endpoint of SOLANA_RPC_ENDPOINTS) {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
-      const r = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
+      let r;
+      try {
+        r = await fetch(endpoint, {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } catch (fetchErr) {
+        // Erros de rede (CORS bloqueado, timeout, offline) — tenta o próximo
+        clearTimeout(timeout);
+        lastError = fetchErr;
+        continue;
+      }
       clearTimeout(timeout);
+      if (r.status === 403 || r.status === 429) {
+        // 403 = CORS/auth bloqueado, 429 = rate limit — tenta o próximo
+        lastError = new Error(`HTTP ${r.status} em ${endpoint}`);
+        continue;
+      }
       if (!r.ok) { lastError = new Error(`HTTP ${r.status} em ${endpoint}`); continue; }
       const json = await r.json();
       if (json?.error) { lastError = new Error(json.error.message || `Erro RPC em ${endpoint}`); continue; }
