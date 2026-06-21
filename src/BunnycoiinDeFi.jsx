@@ -778,11 +778,26 @@ export default function BunnycoiinDeFi() {
 
   const fetchSolUsdPrice = useCallback(async () => {
     try {
-      const res = await fetch('/api/coingecko-price');
+      // Usa a Jupiter Price API — já está no proxy, sem CORS extra
+      const res = await fetch(
+        `/api/jupiter-quote?inputMint=${SOL_MINT}&outputMint=${USDC_MINT}&amount=1000000000&swapMode=ExactIn`
+      );
       const data = await res.json();
-      return data?.solana?.usd ?? null;
+      if (data?.outAmount) {
+        // outAmount em USDC (6 decimais) para 1 SOL (9 decimais = 1000000000)
+        return Number(data.outAmount) / 1e6;
+      }
+      throw new Error('sem outAmount');
     } catch (e) {
-      return null;
+      try {
+        // Fallback: DexScreener SOL/USDC
+        const res2 = await fetch('https://api.dexscreener.com/latest/dex/pairs/solana/58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWagsWuFfo4H');
+        const d = await res2.json();
+        const price = parseFloat(d?.pair?.priceUsd ?? 0);
+        return price > 0 ? price : null;
+      } catch {
+        return null;
+      }
     }
   }, []);
 
